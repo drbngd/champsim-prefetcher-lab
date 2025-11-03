@@ -28,6 +28,7 @@
 #include "core_inst.inc"
 #endif
 #include "defaults.hpp"
+#include "dpc_api.h"
 #include "environment.h"
 #include "ooo_cpu.h" // for O3_CPU
 #include "phase_info.h"
@@ -51,6 +52,16 @@ const unsigned PAGE_SIZE = configured_environment::page_size;
 const unsigned LOG2_BLOCK_SIZE = champsim::lg2(BLOCK_SIZE);
 const unsigned LOG2_PAGE_SIZE = champsim::lg2(PAGE_SIZE);
 
+// Singleton environment pointer
+static configured_environment* g_env;
+
+// API
+uint8_t get_dram_bw()
+{
+  MEMORY_CONTROLLER& mc = g_env->dram_view();
+  return mc.get_bw();
+}
+
 #ifndef CHAMPSIM_TEST_BUILD
 int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 {
@@ -63,15 +74,12 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   long long simulation_instructions = std::numeric_limits<long long>::max();
   std::string json_file_name;
   std::vector<std::string> trace_names;
-
-  auto set_heartbeat_callback = [&](auto) {
-    for (O3_CPU& cpu : gen_environment.cpu_view()) {
-      cpu.show_heartbeat = false;
-    }
-  };
+  bool hide_heartbeat{false};
+  long long heartbeat_interval = 500000;
 
   app.add_flag("-c,--cloudsuite", knob_cloudsuite, "Read all traces using the cloudsuite format");
-  app.add_flag("--hide-heartbeat", set_heartbeat_callback, "Hide the heartbeat output");
+  app.add_flag("--hide-heartbeat", hide_heartbeat, "Hide the heartbeat output");
+  app.add_option("--heartbeat-interval", heartbeat_interval, "The frequency of printing heartbeat");
   auto* warmup_instr_option = app.add_option("-w,--warmup-instructions", warmup_instructions, "The number of instructions in the warmup phase");
   auto* deprec_warmup_instr_option =
       app.add_option("--warmup_instructions", warmup_instructions, "[deprecated] use --warmup-instructions instead")->excludes(warmup_instr_option);
@@ -86,6 +94,13 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   app.add_option("traces", trace_names, "The paths to the traces")->required()->expected(NUM_CPUS)->check(CLI::ExistingFile);
 
   CLI11_PARSE(app, argc, argv);
+
+  g_env = &gen_environment;
+
+  for (O3_CPU& cpu : gen_environment.cpu_view()) {
+    cpu.show_heartbeat = hide_heartbeat ? false : true;
+    cpu.heartbeat_interval = heartbeat_interval;
+  }
 
   const bool warmup_given = (warmup_instr_option->count() > 0) || (deprec_warmup_instr_option->count() > 0);
   const bool simulation_given = (sim_instr_option->count() > 0) || (deprec_sim_instr_option->count() > 0);
@@ -117,8 +132,12 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     std::iota(std::begin(p.trace_index), std::end(p.trace_index), 0);
   }
 
-  fmt::print("\n*** ChampSim Multicore Out-of-Order Simulator ***\nWarmup Instructions: {}\nSimulation Instructions: {}\nNumber of CPUs: {}\nPage size: {}\n\n",
+  fmt::print("\n*** ChampSim Multicore Out-of-Order Simulator ***\nWarmup Instructions: {}\nSimulation Instructions: {}\nNumber of CPUs: {}\nPage size: {}\n",
              phases.at(0).length, phases.at(1).length, std::size(gen_environment.cpu_view()), PAGE_SIZE);
+
+  for (size_t index = 0; index < NUM_CPUS; ++index) {
+    fmt::print("Core {}: {}\n", index, trace_names[index]);
+  }
 
   auto phase_stats = champsim::main(gen_environment, phases, traces);
 
