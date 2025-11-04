@@ -30,4 +30,14 @@
 //--------------------------------------------------------------------//
 uint8_t get_dram_bw();
 
+//--------------------------------------------------------------------//
+// Returns the number of instructions retired
+// since the beginning of the simulation.
+//
+// Can be helpful in measuring core's performance and adapt
+// prefetching strategy accordingly.
+// Note that, the value returned by this function includes warmup instructions.
+//--------------------------------------------------------------------//
+long long get_retired_insts(uint8_t cpu_id);
+
 #endif /* __DPC_API_H__ */
