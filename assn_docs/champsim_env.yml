@@ -1,0 +1,15 @@
+name: champsim
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - cmake
+  - pkg-config
+  - bzip2
+  - xz
+  - zlib
+  - fmt
+  - nlohmann_json
+  - catch2
+  - cli11
+  - compilers

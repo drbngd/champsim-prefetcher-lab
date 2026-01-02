@@ -6,3 +6,4 @@
 -Wshadow
 -Wpedantic
 -Wconversion
+-DFMT_HEADER_ONLY
